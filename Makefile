@@ -86,7 +86,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS = -Wall -Werror -O0 -fno-omit-frame-pointer -ggdb -gdwarf-2
 
 ifdef LAB
 LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
@@ -126,8 +126,8 @@ $K/kernel: $(OBJS) $(OBJS_KCSAN) $K/kernel.ld $U/initcode
 
 $(OBJS): EXTRAFLAG := $(KCSANFLAG)
 
-$K/%.o: $K/%.c
-	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
+$U/%.o: $U/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 $U/initcode: $U/initcode.S
