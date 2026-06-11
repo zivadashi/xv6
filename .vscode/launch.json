@@ -77,6 +77,11 @@
                     "ignoreFailures": false
                 },
                 {
+                    "description": "Debug only one core",
+                    "text": "-interpreter-exec console \"set scheduler-locking step\"",
+                    "ignoreFailures": false
+                },
+                {
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
@@ -125,6 +130,11 @@
                 {
                     "description": "Dynamically set breakpoint at active user main",
                     "text": "-interpreter-exec console \"break ${fileBasename}:main\"",
+                    "ignoreFailures": false
+                },
+                {
+                    "description": "Debug only one core",
+                    "text": "-interpreter-exec console \"set scheduler-locking step\"",
                     "ignoreFailures": false
                 },
                 {
