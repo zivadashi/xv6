@@ -1,6 +1,6 @@
 {
     "name": "xv6 Development Sandbox",
-    "image": "xv6-compiler", 
+    "image": "zivadashi/xv6-compiler", 
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
     "workspaceFolder": "/workspace",
     "customizations": {
