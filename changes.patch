@@ -1,0 +1,240 @@
+diff --git a/.devcontainer/devcontainer.json b/.devcontainer/devcontainer.json
+deleted file mode 100644
+index e6b5d6f..0000000
+--- a/.devcontainer/devcontainer.json
++++ /dev/null
+@@ -1,15 +0,0 @@
+-{
+-    "name": "xv6 Development Sandbox",
+-    "image": "zivadashi/xv6-compiler", 
+-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+-    "workspaceFolder": "/workspace",
+-    "customizations": {
+-        "vscode": {
+-            "extensions": [
+-                "ms-vscode.cpptools",
+-                "ms-vscode.cpptools-themes"
+-            ]
+-        }
+-    },
+-    "remoteUser": "root"
+-}
+\ No newline at end of file
+diff --git a/.vscode/launch.json b/.vscode/launch.json
+deleted file mode 100644
+index 2cd0557..0000000
+--- a/.vscode/launch.json
++++ /dev/null
+@@ -1,148 +0,0 @@
+-{
+-    "version": "0.2.0",
+-    "configurations": [
+-        {
+-            "name": "Debug xv6 Kernel",
+-            "type": "cppdbg",
+-            "request": "launch",
+-            "program": "${workspaceFolder}/kernel/kernel",
+-            "args": [],
+-            "stopAtEntry": true,
+-            "cwd": "${workspaceFolder}",
+-            "environment": [],
+-            "externalConsole": false,
+-            "MIMode": "gdb",
+-            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+-            "miDebuggerArgs": "-nx",
+-            "setupCommands": [
+-                {
+-                    "description": "Set architecture to RISC-V",
+-                    "text": "-gdb-set architecture riscv:rv64",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Force manual terminal connection",
+-                    "text": "-interpreter-exec console \"target remote 127.0.0.1:25000\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Enable pretty-printing for gdb",
+-                    "text": "-enable-pretty-printing",
+-                    "ignoreFailures": true
+-                }
+-            ],
+-        },
+-        {
+-            "name": "Debug xv6 User (echo)",
+-            "type": "cppdbg",
+-            "request": "launch",
+-            "program": "${workspaceFolder}/kernel/kernel",
+-            "args": [],
+-            "stopAtEntry": false,
+-            "cwd": "${workspaceFolder}",
+-            "environment": [],
+-            "externalConsole": false,
+-            "MIMode": "gdb",
+-            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+-            "miDebuggerArgs": "-nx",
+-            "setupCommands": [
+-                {
+-                    "description": "Set architecture to RISC-V",
+-                    "text": "-gdb-set architecture riscv:rv64",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Force manual terminal connection",
+-                    "text": "-interpreter-exec console \"target remote 127.0.0.1:25000\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Disable GDB y/n confirmation prompts",
+-                    "text": "-interpreter-exec console \"set confirm off\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Force GDB to accept future breakpoints",
+-                    "text": "-interpreter-exec console \"set breakpoint pending on\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Automate absolute user symbol loading",
+-                    "text": "-interpreter-exec console \"add-symbol-file ${workspaceFolder}/user/_echo 0\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Automatically set breakpoint at user main",
+-                    "text": "-interpreter-exec console \"break echo.c:main\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Debug only one core",
+-                    "text": "-interpreter-exec console \"set scheduler-locking step\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Enable pretty-printing for gdb",
+-                    "text": "-enable-pretty-printing",
+-                    "ignoreFailures": true
+-                }
+-            ]
+-        },
+-        {
+-            "name": "Debug Active User File",
+-            "type": "cppdbg",
+-            "request": "launch",
+-            "program": "${workspaceFolder}/kernel/kernel",
+-            "args": [],
+-            "stopAtEntry": false,
+-            "cwd": "${workspaceFolder}",
+-            "environment": [],
+-            "externalConsole": false,
+-            "MIMode": "gdb",
+-            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+-            "miDebuggerArgs": "-nx",
+-            "setupCommands": [
+-                {
+-                    "description": "Set architecture to RISC-V",
+-                    "text": "-gdb-set architecture riscv:rv64",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Force manual terminal connection",
+-                    "text": "-interpreter-exec console \"target remote 127.0.0.1:25000\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Disable GDB y/n confirmation prompts",
+-                    "text": "-interpreter-exec console \"set confirm off\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Force GDB to accept future breakpoints",
+-                    "text": "-interpreter-exec console \"set breakpoint pending on\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Dynamically load active user symbol file",
+-                    "text": "-interpreter-exec console \"add-symbol-file ${workspaceFolder}/user/_${fileBasenameNoExtension} 0\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Dynamically set breakpoint at active user main",
+-                    "text": "-interpreter-exec console \"break ${fileBasename}:main\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Debug only one core",
+-                    "text": "-interpreter-exec console \"set scheduler-locking step\"",
+-                    "ignoreFailures": false
+-                },
+-                {
+-                    "description": "Enable pretty-printing for gdb",
+-                    "text": "-enable-pretty-printing",
+-                    "ignoreFailures": true
+-                }
+-            ]
+-        }
+-    ]
+-}
+\ No newline at end of file
+diff --git a/.vscode/tasks.json b/.vscode/tasks.json
+deleted file mode 100644
+index 96af0d9..0000000
+--- a/.vscode/tasks.json
++++ /dev/null
+@@ -1,32 +0,0 @@
+-{
+-    "version": "2.0.0",
+-    "tasks": [
+-        {
+-            "label": "Run QEMU GDB Server",
+-            "type": "shell",
+-            "command": "make qemu-gdb || sleep 1",
+-            "isBackground": true,
+-            "problemMatcher": [
+-                {
+-                    "pattern": [
+-                        {
+-                            "regexp": ".",
+-                            "file": 1,
+-                            "location": 2,
+-                            "message": 3
+-                        }
+-                    ],
+-                    "background": {
+-                        "activeOnStart": true,
+-                        "beginsPattern": "^\\*\\*\\*.*",
+-                        "endsPattern": "qemu-system-riscv64.*" 
+-                    }
+-                }
+-            ],
+-            "presentation": {
+-                "reveal": "always",
+-                "panel": "new"
+-            }
+-        }
+-    ]
+-}
+\ No newline at end of file
+diff --git a/Makefile b/Makefile
+index 569a6c9..ded5bc2 100644
+--- a/Makefile
++++ b/Makefile
+@@ -86,7 +86,7 @@ LD = $(TOOLPREFIX)ld
+ OBJCOPY = $(TOOLPREFIX)objcopy
+ OBJDUMP = $(TOOLPREFIX)objdump
+ 
+-CFLAGS = -Wall -Werror -O0 -fno-omit-frame-pointer -ggdb -gdwarf-2
++CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+ 
+ ifdef LAB
+ LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
+@@ -126,8 +126,8 @@ $K/kernel: $(OBJS) $(OBJS_KCSAN) $K/kernel.ld $U/initcode
+ 
+ $(OBJS): EXTRAFLAG := $(KCSANFLAG)
+ 
+-$U/%.o: $U/%.c
+-	$(CC) $(CFLAGS) -c -o $@ $<
++$K/%.o: $K/%.c
++	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
+ 
+ 
+ $U/initcode: $U/initcode.S
