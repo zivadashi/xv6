@@ -1,0 +1,6 @@
+1. It was called by usertrap
+2. The value is 15
+3. We were in user mode
+4. the command was lw	a3,0(zero)  and it corresponds to zero
+5. It crashes because we are trying to access address 0. It is correctly indicated by the page fault in scause
+6. it was initcode and the pid is 1
