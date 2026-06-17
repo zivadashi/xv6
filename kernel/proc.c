@@ -283,6 +283,8 @@ fork(void)
   struct proc *np;
   struct proc *p = myproc();
 
+  p->trace_mask = p->parent->trace_mask;
+
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
