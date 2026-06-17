@@ -32,23 +32,22 @@ int main(int argc, char *argv[])
             int in_pipe = p[0];
             int num = 0;
             close(p[1]);
-            while (!num || !is_prime(num))
+            if (!read(p[0], &num, 4))
             {
-                if (!read(p[0], &num, 4))
-                {
-                    // We are done reading
-                    close(p[0]);
-                    close(p[1]);
-                    exit(0);
-                }
+                close(p[0]);
+                close(p[1]);
+                exit(0);
             }
             printf("prime %d\n", num);
             // creating a new pipe for the next process
             pipe(p);
             // inserting the rest of the data into the next pipe
-            while (read(in_pipe, &num, 4))
+            int next = 0;
+            while (read(in_pipe, &next, 4))
             {
-                write(p[1], &num, 4);
+                if (next % num != 0){
+                    write(p[1], &next, 4);
+                }
             }
             close(in_pipe);
         }
