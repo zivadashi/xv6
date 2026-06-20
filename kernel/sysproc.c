@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -100,5 +101,18 @@ sys_trace()
   int trace_mask = 0;
   argint(0, &trace_mask);
   myproc()->trace_mask = trace_mask;
+  return 0;
+}
+
+uint64
+sys_sysinfo()
+{
+  struct sysinfo info;
+  uint64 addr; // user pointer to struct sysinfo
+  argaddr(0, &addr);
+  info.freemem = get_free_mem_amount();
+  info.nproc = get_num_of_processes();
+  if (copyout(myproc()->pagetable, addr, (char *)&info, sizeof(info)) < 0)
+    return -1;
   return 0;
 }

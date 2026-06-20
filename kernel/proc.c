@@ -26,6 +26,26 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+// getting number of used processes
+uint64
+get_num_of_processes(void)
+{
+  struct proc *p;
+  int count = 0;
+  acquire(&pid_lock);
+  for (p = proc; p < &proc[NPROC]; p++)
+  {
+    acquire(&p->lock);
+    if (p->state != UNUSED)
+    {
+      count++;
+    }
+    release(&p->lock);
+  }
+  release(&pid_lock);
+  return count;
+}
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
