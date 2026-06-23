@@ -1,0 +1,12 @@
+1. the registers a0 - a7
+2. they aren't called
+3. 1584
+4. 0x38
+5. He110 World. if we were on big endian,
+it would have been He110 Wo because the null
+would be first.
+We would need to set i=726c6400.
+the other number wouldn't change.
+6. it is going to be a garbage value.
+More specifically it is the next 4 bytes
+after the second function parameter.
