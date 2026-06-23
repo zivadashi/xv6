@@ -8,7 +8,6 @@
 
 #define MAX_PAGES_SCANNED_NUMBER 128
 #define PGACCESS_BUFF_SIZE (MAX_PAGES_SCANNED_NUMBER / 8) + 1
-#define PGACCESS_TOTAL_BITS PGACCESS_BUFF_SIZE * 8
 
 uint64
 sys_exit(void)
@@ -74,42 +73,50 @@ sys_sleep(void)
   return 0;
 }
 
-// TODO: remove
-#define LAB_PGTBL
 #ifdef LAB_PGTBL
-int sys_pgaccess(void)
+uint64 sys_pgaccess(void)
 {
   // getting args
   uint64 userpage;
-  uint64 num_of_bits;
+  int num_of_bits;
   uint64 bitmask_res_addr;
   argaddr(0, &userpage);
   argint(1, &num_of_bits);
-  argaddr(0, &bitmask_res_addr);
+  argaddr(2, &bitmask_res_addr);
 
   int bit = 0;
   int element = 0;
   char buff[PGACCESS_BUFF_SIZE] = {0};
+  int copy_len = 0;
   pte_t *pte;
   pagetable_t pagetable;
+  // getting how many bytes are needed
+  copy_len = num_of_bits / 8;
+  if (num_of_bits % 8 > 0){
+    // if it isn't aligned we need to copy another byte
+    copy_len++;
+  }
   pagetable = myproc()->pagetable;
   for (int i = 0; i < num_of_bits; i++)
   {
-    if ((pte = walk(pagetable, i * PGSIZE, 0)) == 0 || (*pte & PTE_V) == 0)
+    if ((pte = walk(pagetable, userpage + i * PGSIZE, 0)) == 0 || (*pte & PTE_V) == 0)
+      // wasn't accessed or isn't valid
       continue;
     if (PTE_ACCESSED(*pte))
     {
+      // removing the accessed bit
       *pte = *pte & ~(PTE_A);
       // we found a page that was accessed - turn on the corresponding bit
-      bit = PGACCESS_TOTAL_BITS - i - 1; // we start from lsb
+      bit = i; // we start from lsb
       element = bit / 8;
       bit = bit % 8;
-      buff[element] = buff[element] | (1L << (7 - bit));
+      buff[element] = buff[element] | (1L << bit);
     }
   }
-  // TODO: copy out the buffer to bitmask_res_addr
-  if (copyout(pagetable, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
-    return 0;
+
+  if (copyout(pagetable, bitmask_res_addr, buff, copy_len) < 0)
+    return -1;
+  return 0;
 }
 #endif
 
