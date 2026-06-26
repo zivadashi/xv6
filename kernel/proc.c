@@ -130,6 +130,13 @@ found:
   // alarm
   p->tick_count = 0;
   p->is_running = 0;
+  p->done = 0;
+  if ((p->temp_trapframe = (struct trapframe *)kalloc()) == 0)
+  {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0)

@@ -121,11 +121,13 @@ uint64 sys_sigalarm(void)
   handler = (void (*)())handle_addr;
   myproc()->ticks = ticks;
   myproc()->handler = handler;
+  myproc()->done = 0;
   return 0;
 }
 
 uint64 sys_sigreturn(void)
 {
+  myproc()->done = 1;
   myproc()->is_running = 0;
   return 0;
 }
