@@ -130,7 +130,6 @@ found:
   // alarm
   p->tick_count = 0;
   p->is_running = 0;
-  p->done = 0;
   if ((p->temp_trapframe = (struct trapframe *)kalloc()) == 0)
   {
     freeproc(p);
@@ -172,6 +171,8 @@ freeproc(struct proc *p)
 {
   if (p->trapframe)
     kfree((void *)p->trapframe);
+  if (p->temp_trapframe)
+    kfree((void *)p->temp_trapframe);
   p->trapframe = 0;
   if (p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);

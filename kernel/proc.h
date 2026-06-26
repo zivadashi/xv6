@@ -123,5 +123,4 @@ struct proc
   int tick_count;
   int is_running;
   struct trapframe *temp_trapframe;
-  int done;
 };

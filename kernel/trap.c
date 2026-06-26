@@ -84,24 +84,16 @@ void usertrap(void)
     yield();
   }
 
-  if (p->done)
-  {
-    p->done = 0;
-    *(p->trapframe) = *(p->temp_trapframe);
-    // memmove(p->trapframe, p->temp_trapframe, sizeof(struct trapframe));
-  }
-
   if (which_dev == 2)
   {
     // increasing the tick count
     p->tick_count++;
     if (p->ticks != 0 && p->tick_count >= p->ticks && !p->is_running)
     {
+      *(p->temp_trapframe) = *(p->trapframe);
       p->trapframe->epc = (uint64)p->handler;
       p->tick_count -= 2;
       p->is_running = 1;
-      *(p->temp_trapframe) = *(p->trapframe);
-      // memmove(p->temp_trapframe, p->trapframe, sizeof(struct trapframe));
     }
   }
 
