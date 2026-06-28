@@ -1,0 +1,3 @@
+two threads might get to insert function, trying to insert their value. this causes 2 probrlems.
+1. They might have the same key, thus they shouldnt try to add them both.
+2. They might override one each other's inserts.
