@@ -18,15 +18,89 @@ struct run {
   struct run *next;
 };
 
-struct {
+struct kmem {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+};
+
+struct kmem kmem_arr[NCPU];
+
+// getting the amount of free pages this cpu has
+int get_free_mem_amount(struct run *freelist){
+  int count = 0;
+  struct run* curr = freelist;
+  while(curr){
+    curr = curr->next;
+    count++;
+  }
+  return count;
+}
+
+// iterating over the cpus and finding the one with the most free memory
+// struct kmem* find_cpu_with_most_memory(struct kmem kmem_arr[]){
+//   struct kmem* res = 0;
+//   int highest = 0;
+//   int curr_count = 0;
+//   for (int i = 0; i < NCPU; i++){
+//     curr_count = get_free_mem_amount(&kmem_arr[i]);
+//     if (curr_count > highest){
+//       highest = curr_count;
+//       res = &kmem_arr[i];
+//     }
+//   }
+//   return res;
+// }
+
+// stealing half of the available memory from src
+void steal_memory(struct kmem* dst, struct kmem* src){
+  int free_count = get_free_mem_amount(src->freelist);
+  if (free_count == 0){
+    // nothing to steal
+    return;
+  }
+  if (free_count == 1){
+    // stealing all the memory
+    dst->freelist = src->freelist;
+    src->freelist = 0;
+    return;
+  }
+  int steal_amount = free_count / 2;
+  // getting to the stealing index
+  struct run* curr = src->freelist;
+  for (int i = 0; i < steal_amount - 1; i++){
+    curr = curr->next;
+  }
+  // stealing the rest of the list
+  dst->freelist = curr->next;
+  curr->next = 0;
+}
+
+// getting more memory for the cpu with the given id
+void get_memory(int id){
+  // starting the search from id + 1
+  for (int i = (id + 1) % NCPU; i != id; i = (i + 1) % NCPU){
+    if (!try_lock(&kmem_arr[i].lock)){
+      // didn't manage to lock
+      continue;
+    }
+    if (!kmem_arr[i].freelist){
+      // doesn't have free memory
+      release(&kmem_arr[i].lock);
+      continue;
+    }
+    // stealing
+    steal_memory(&kmem_arr[id], &kmem_arr[i]);
+    release(&kmem_arr[i].lock);
+    break;
+  }
+}
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+  for (int i = 0; i < NCPU; i++){
+    initlock(&kmem_arr[i].lock, "kmem");
+  }
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -48,6 +122,11 @@ kfree(void *pa)
 {
   struct run *r;
 
+  // getting current cpu id
+  push_off();
+  int id = cpuid();
+  pop_off();
+
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
@@ -56,10 +135,10 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  acquire(&kmem_arr[id].lock);
+  r->next = kmem_arr[id].freelist;
+  kmem_arr[id].freelist = r;
+  release(&kmem_arr[id].lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -70,11 +149,26 @@ kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+  // getting current cpu id
+  push_off();
+  int id = cpuid();
+  pop_off();
+
+  int allocated = 0;
+
+  while (!allocated){
+    acquire(&kmem_arr[id].lock);
+    r = kmem_arr[id].freelist;
+    if(r){
+      kmem_arr[id].freelist = r->next;
+      allocated = 1;
+    }
+    else{
+      // we need to steal memory
+      get_memory(id);
+    }
+    release(&kmem_arr[id].lock);
+  }
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
