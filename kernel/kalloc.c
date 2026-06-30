@@ -25,6 +25,9 @@ struct kmem {
 
 struct kmem kmem_arr[NCPU];
 
+static struct spinlock remaining_lock;
+static int remaining_mem_total = 0;
+
 // getting the amount of free pages this cpu has
 int get_free_mem_amount(struct run *freelist){
   int count = 0;
@@ -37,19 +40,19 @@ int get_free_mem_amount(struct run *freelist){
 }
 
 // iterating over the cpus and finding the one with the most free memory
-// struct kmem* find_cpu_with_most_memory(struct kmem kmem_arr[]){
-//   struct kmem* res = 0;
-//   int highest = 0;
-//   int curr_count = 0;
-//   for (int i = 0; i < NCPU; i++){
-//     curr_count = get_free_mem_amount(&kmem_arr[i]);
-//     if (curr_count > highest){
-//       highest = curr_count;
-//       res = &kmem_arr[i];
-//     }
-//   }
-//   return res;
-// }
+int find_cpu_with_most_memory(){
+  int res = 0;
+  int highest = 0;
+  int curr_count = 0;
+  for (int i = 0; i < NCPU; i++){
+    curr_count = get_free_mem_amount(kmem_arr[i].freelist);
+    if (curr_count > highest){
+      highest = curr_count;
+      res = i;
+    }
+  }
+  return res;
+}
 
 // stealing half of the available memory from src
 void steal_memory(struct kmem* dst, struct kmem* src){
@@ -102,6 +105,12 @@ kinit()
     initlock(&kmem_arr[i].lock, "kmem");
   }
   freerange(end, (void*)PHYSTOP);
+  initlock(&remaining_lock, "rem");
+  push_off();
+  int id = cpuid();
+  pop_off();
+  remaining_mem_total = get_free_mem_amount(kmem_arr[id].freelist);
+  printf("starting memory: %d\n", remaining_mem_total);
 }
 
 void
@@ -139,6 +148,10 @@ kfree(void *pa)
   r->next = kmem_arr[id].freelist;
   kmem_arr[id].freelist = r;
   release(&kmem_arr[id].lock);
+  acquire(&remaining_lock);
+  remaining_mem_total++;
+  release(&remaining_lock);
+
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -148,7 +161,6 @@ void *
 kalloc(void)
 {
   struct run *r;
-
   // getting current cpu id
   push_off();
   int id = cpuid();
@@ -157,19 +169,34 @@ kalloc(void)
   int allocated = 0;
 
   while (!allocated){
+    int has_mem = 0;
     acquire(&kmem_arr[id].lock);
     r = kmem_arr[id].freelist;
     if(r){
+      //printf("cpu %d allocated\n", id);
       kmem_arr[id].freelist = r->next;
       allocated = 1;
     }
     else{
       // we need to steal memory
       get_memory(id);
+      if (!kmem_arr[id].freelist){
+        printf("cpu %d stole and failed\n", id);
+        has_mem = find_cpu_with_most_memory();
+        printf("cpu %d has memory\n", has_mem);
+        printf("remaining: %d\n", remaining_mem_total);
+      }
+      // else{
+      //   printf("cpu %d stole and succeeded\n", id);
+      // }
     }
     release(&kmem_arr[id].lock);
+    //   yield();
+    // }
   }
-
+  acquire(&remaining_lock);
+  remaining_mem_total--;
+  release(&remaining_lock);
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
