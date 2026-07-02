@@ -23,6 +23,18 @@
 #include "fs.h"
 #include "buf.h"
 
+#define BUCKET_NUM 13
+
+struct HashTableNode{
+  struct buf data;
+  struct HashTableNode* next;
+};
+
+struct Bucket{
+  struct spinlock lock;
+  struct HashTableNode* head;
+};
+
 struct {
   struct spinlock lock;
   struct buf buf[NBUF];
@@ -31,13 +43,34 @@ struct {
   // Sorted by how recently the buffer was used.
   // head.next is most recent, head.prev is least.
   struct buf head;
+
+  // the hash table
+  struct Bucket hash_table[BUCKET_NUM];
+  // creating the nodes statically
+  struct HashTableNode buf_nodes[NBUF];
 } bcache;
+
+uint hash(uint dev, uint blockno){
+  return (dev * 31 + blockno) % BUCKET_NUM;
+}
 
 void
 binit(void)
 {
   struct buf *b;
 
+  for (int i = 0; i < BUCKET_NUM; i++){
+    initlock(&bcache.hash_table[i].lock, "bcache_bucket");
+    bcache.hash_table[i].head = 0;
+  }
+
+  // distributing the blocks evenly
+  for (int i = 0; i < NBUF; i++){
+    bcache.buf_nodes[i].next = bcache.hash_table[i % BUCKET_NUM].head;
+    bcache.hash_table[i % BUCKET_NUM].head = &bcache.buf_nodes[i];
+  }
+
+  // old code
   initlock(&bcache.lock, "bcache");
 
   // Create linked list of buffers
@@ -60,6 +93,52 @@ bget(uint dev, uint blockno)
 {
   struct buf *b;
 
+  uint idx = hash(dev, blockno);
+  struct Bucket bucket = bcache.hash_table[idx];
+  struct HashTableNode* data = 0;
+  struct HashTableNode** p = 0;
+  // acquiring the bucket lock
+  acquire(&bucket.lock);
+
+  // iterating until we find our block or we reach the end
+  data = bucket.head;
+  while (data){
+    if (data->data.dev == dev && data->data.blockno == blockno){
+      // we found the block
+      break;
+    }
+    data = data->next;
+  }
+  if (data){
+    // block was found
+    data->data.refcnt++;
+    release(&bucket.lock);
+    acquiresleep(&data->data.lock);
+    return &data->data;
+  }
+  // block was not found
+  release(&bucket.lock); // releasing while we are looking in different buckets
+  // searching the hash table
+  for (int i = 0; i < BUCKET_NUM; i++){
+    acquire(&bcache.hash_table[i].lock);
+    p = &bcache.hash_table[i].head;
+    data = bcache.hash_table[i].head;
+    // looking for a buf with 0 refcnt
+    while(data){
+      if (data->data.refcnt == 0){
+        // removing node from bucket
+        *p = data->data.next;
+        data->data.next = 0;
+        break;
+      }
+      p = &data->data.next;
+      data = data->data.next;
+    }
+    release(&bcache.hash_table[i].lock);
+  }
+
+
+  // old code
   acquire(&bcache.lock);
 
   // Is the block already cached?
