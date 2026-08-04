@@ -449,6 +449,7 @@ bmap(struct inode *ip, uint bn)
       if (addr)
       {
         a[entry] = addr;
+        log_write(bp);
       }
     }
     brelse(bp);

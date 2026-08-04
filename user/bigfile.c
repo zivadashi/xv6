@@ -36,18 +36,15 @@ int main()
   }
 
   close(fd);
-  printf("a");
   fd = open("big.file", O_RDONLY);
   if (fd < 0)
   {
     printf("bigfile: cannot re-open big.file for reading\n");
     exit(-1);
   }
-  printf("b");
   for (i = 0; i < blocks; i++)
   {
     int cc = read(fd, buf, sizeof(buf));
-    printf("c");
     if (cc <= 0)
     {
       printf("bigfile: read error at block %d\n", i);
@@ -60,7 +57,7 @@ int main()
       exit(-1);
     }
   }
-  printf("d");
+
   printf("bigfile done; ok\n");
 
   exit(0);

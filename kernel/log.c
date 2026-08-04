@@ -155,6 +155,7 @@ void begin_op(void)
 void end_op(void)
 {
   int do_commit = 0;
+
   acquire(&log.lock);
   log.outstanding -= 1;
   if (log.committing)
