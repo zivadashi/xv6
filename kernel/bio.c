@@ -13,7 +13,6 @@
 // * Only one process at a time can use a buffer,
 //     so do not keep them longer than necessary.
 
-
 #include "types.h"
 #include "param.h"
 #include "spinlock.h"
@@ -25,24 +24,22 @@
 
 #define BUCKET_NUM 13
 
-struct HashTableNode{
+struct HashTableNode
+{
   struct buf data;
-  struct HashTableNode* next;
+  struct HashTableNode *next;
 };
 
-struct Bucket{
+struct Bucket
+{
   struct spinlock lock;
-  struct HashTableNode* head;
+  struct HashTableNode *head;
 };
 
-struct {
+struct
+{
   struct spinlock lock;
   struct buf buf[NBUF];
-
-  // Linked list of all buffers, through prev/next.
-  // Sorted by how recently the buffer was used.
-  // head.next is most recent, head.prev is least.
-  struct buf head;
 
   // the hash table
   struct Bucket hash_table[BUCKET_NUM];
@@ -50,82 +47,77 @@ struct {
   struct HashTableNode buf_nodes[NBUF];
 } bcache;
 
-uint hash(uint dev, uint blockno){
+uint hash(uint dev, uint blockno)
+{
   return (dev * 31 + blockno) % BUCKET_NUM;
 }
 
-void
-binit(void)
+void binit(void)
 {
-  struct buf *b;
-
-  for (int i = 0; i < BUCKET_NUM; i++){
+  for (int i = 0; i < BUCKET_NUM; i++)
+  {
     initlock(&bcache.hash_table[i].lock, "bcache_bucket");
     bcache.hash_table[i].head = 0;
   }
 
   // distributing the blocks evenly
-  for (int i = 0; i < NBUF; i++){
+  for (int i = 0; i < NBUF; i++)
+  {
     bcache.buf_nodes[i].next = bcache.hash_table[i % BUCKET_NUM].head;
     bcache.hash_table[i % BUCKET_NUM].head = &bcache.buf_nodes[i];
   }
 
   // old code
   initlock(&bcache.lock, "bcache");
-
-  // Create linked list of buffers
-  bcache.head.prev = &bcache.head;
-  bcache.head.next = &bcache.head;
-  for(b = bcache.buf; b < bcache.buf+NBUF; b++){
-    b->next = bcache.head.next;
-    b->prev = &bcache.head;
-    initsleeplock(&b->lock, "buffer");
-    bcache.head.next->prev = b;
-    bcache.head.next = b;
-  }
 }
 
 // Look through buffer cache for block on device dev.
 // If not found, allocate a buffer.
 // In either case, return locked buffer.
-static struct buf*
+static struct buf *
 bget(uint dev, uint blockno)
 {
   // struct buf *b;
 
   uint idx = hash(dev, blockno);
-  struct Bucket bucket = bcache.hash_table[idx];
-  struct HashTableNode* data = 0;
-  struct HashTableNode** p = 0;
+  struct Bucket *bucket = &bcache.hash_table[idx];
+  struct HashTableNode *data = 0;
+  struct HashTableNode **p = 0;
   // acquiring the bucket lock
-  acquire(&bucket.lock);
+  acquire(&bucket->lock);
 
   // iterating until we find our block or we reach the end
-  data = bucket.head;
-  while (data){
-    if (data->data.dev == dev && data->data.blockno == blockno){
+  data = bucket->head;
+  while (data)
+  {
+    if (data->data.dev == dev && data->data.blockno == blockno)
+    {
       // we found the block
       break;
     }
     data = data->next;
   }
-  if (data){
+  if (data)
+  {
     // block was found
     data->data.refcnt++;
-    release(&bucket.lock);
+    release(&bucket->lock);
     acquiresleep(&data->data.lock);
     return &data->data;
   }
   // block was not found
-  release(&bucket.lock); // releasing while we are looking in different buckets
+  release(&bucket->lock); // releasing while we are looking in different buckets
   // searching the hash table
-  for (int i = 0; i < BUCKET_NUM; i++){
+  for (int i = 0; i < BUCKET_NUM; i++)
+  {
     acquire(&bcache.hash_table[i].lock);
     p = &bcache.hash_table[i].head;
     data = bcache.hash_table[i].head;
     // looking for a buf with 0 refcnt
-    while(data){
-      if (data->data.refcnt == 0){
+    while (data)
+    {
+      if (data->data.refcnt == 0)
+      {
         // removing node from bucket
         *p = data->next;
         data->next = 0;
@@ -135,56 +127,39 @@ bget(uint dev, uint blockno)
       data = data->next;
     }
     release(&bcache.hash_table[i].lock);
-    if (data){
+    if (data)
+    {
       break;
     }
   }
 
-  // inserting to bucket
-  acquire(&bucket.lock);
-  data->next = bucket.head;
-  bucket.head = data;
-  release(&bucket.lock);
+  if (data)
+  {
+    // inserting to bucket
+    acquire(&bucket->lock);
+    data->next = bucket->head;
+    bucket->head = data;
+    data->data.dev = dev;
+    data->data.blockno = blockno;
+    data->data.valid = 0;
+    data->data.refcnt = 1;
+    release(&bucket->lock);
+    acquiresleep(&data->data.lock);
+    return &data->data;
+  }
 
-  return &data->data;
-
-  // // old code
-  // acquire(&bcache.lock);
-
-  // // Is the block already cached?
-  // for(b = bcache.head.next; b != &bcache.head; b = b->next){
-  //   if(b->dev == dev && b->blockno == blockno){
-  //     b->refcnt++;
-  //     release(&bcache.lock);
-  //     acquiresleep(&b->lock);
-  //     return b;
-  //   }
-  // }
-
-  // // Not cached.
-  // // Recycle the least recently used (LRU) unused buffer.
-  // for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
-  //   if(b->refcnt == 0) {
-  //     b->dev = dev;
-  //     b->blockno = blockno;
-  //     b->valid = 0;
-  //     b->refcnt = 1;
-  //     release(&bcache.lock);
-  //     acquiresleep(&b->lock);
-  //     return b;
-  //   }
-  // }
   panic("bget: no buffers");
 }
 
 // Return a locked buf with the contents of the indicated block.
-struct buf*
+struct buf *
 bread(uint dev, uint blockno)
 {
   struct buf *b;
 
   b = bget(dev, blockno);
-  if(!b->valid) {
+  if (!b->valid)
+  {
     virtio_disk_rw(b, 0);
     b->valid = 1;
   }
@@ -192,71 +167,42 @@ bread(uint dev, uint blockno)
 }
 
 // Write b's contents to disk.  Must be locked.
-void
-bwrite(struct buf *b)
+void bwrite(struct buf *b)
 {
-  if(!holdingsleep(&b->lock))
+  if (!holdingsleep(&b->lock))
     panic("bwrite");
   virtio_disk_rw(b, 1);
 }
 
 // Release a locked buffer.
 // Move to the head of the most-recently-used list.
-void
-brelse(struct buf *b)
+void brelse(struct buf *b)
 {
-  if(!holdingsleep(&b->lock))
+  if (!holdingsleep(&b->lock))
     panic("brelse");
 
   releasesleep(&b->lock);
 
   uint idx = hash(b->dev, b->blockno);
-  struct Bucket bucket = bcache.hash_table[idx];
+  struct Bucket *bucket = &bcache.hash_table[idx];
 
-  acquire(&bucket.lock);
+  acquire(&bucket->lock);
 
   b->refcnt--;
-  // struct HashTableNode* data = 0;
-  // struct HashTableNode** p = 0;
-  // if (b->refcnt == 0){
-  //   // acquiring the bucket lock
-  //   acquire(&bucket.lock);
-  //   p = &bcache.hash_table[idx].head;
-  //   data = bcache.hash_table[idx].head;
 
-  //   release(&bucket.lock);
-  // }
-
-  release(&bucket.lock);
-
-  // old code
-  // acquire(&bcache.lock);
-  // b->refcnt--;
-  // if (b->refcnt == 0) {
-  //   // no one is waiting for it.
-  //   b->next->prev = b->prev;
-  //   b->prev->next = b->next;
-  //   b->next = bcache.head.next;
-  //   b->prev = &bcache.head;
-  //   bcache.head.next->prev = b;
-  //   bcache.head.next = b;
-  // }
-  
-  // release(&bcache.lock);
+  release(&bucket->lock);
 }
 
-void
-bpin(struct buf *b) {
+void bpin(struct buf *b)
+{
   acquire(&bcache.lock);
   b->refcnt++;
   release(&bcache.lock);
 }
 
-void
-bunpin(struct buf *b) {
+void bunpin(struct buf *b)
+{
   acquire(&bcache.lock);
   b->refcnt--;
   release(&bcache.lock);
 }
-
-
