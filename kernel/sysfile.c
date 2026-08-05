@@ -174,73 +174,6 @@ bad:
   return -1;
 }
 
-uint64
-sys_symlink(void)
-{
-  char src[MAXPATH];
-  char dst[MAXPATH];
-  struct file *f;
-  struct inode *ip;
-  int fd;
-
-  if (argstr(0, src, MAXPATH) < 0 || argstr(1, dst, MAXPATH) < 0)
-  {
-    return -1;
-  }
-
-  begin_op();
-
-  if ((ip = namei(src)) == 0)
-  {
-    end_op();
-    return -1;
-  }
-
-  ilock(ip);
-
-  if (ip->type != T_FILE)
-  {
-    iunlockput(ip);
-    end_op();
-    return -1;
-  }
-
-  itrunc(ip);
-  ip->type = T_SYMLINK;
-  iupdate(ip);
-
-  if ((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0)
-  {
-    if (f)
-      fileclose(f);
-    iunlockput(ip);
-    end_op();
-    return -1;
-  }
-
-  f->type = FD_INODE;
-  f->off = 0;
-  f->ip = ip;
-  f->readable = 1;
-  f->writable = 1;
-
-  itrunc(ip);
-
-  // if (writei(f->ip, 0, (uint64)dst, f->off, strlen(dst) + 1) < strlen(dst) + 1)
-  // {
-  //   fileclose(f);
-  //   iunlockput(ip);
-  //   end_op();
-  //   return -1;
-  // }
-
-  fileclose(f);
-  iunlock(ip);
-  end_op();
-
-  return 0;
-}
-
 // Is the directory dp empty except for "." and ".." ?
 static int
 isdirempty(struct inode *dp)
@@ -385,10 +318,13 @@ uint64
 sys_open(void)
 {
   char path[MAXPATH];
+  char link_path[MAXPATH];
   int fd, omode;
   struct file *f;
   struct inode *ip;
+  struct inode *link_ip;
   int n;
+  int depth = 0;
 
   argint(1, &omode);
   if ((n = argstr(0, path, MAXPATH)) < 0)
@@ -428,10 +364,70 @@ sys_open(void)
     return -1;
   }
 
-  if ((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0)
+  if ((f = filealloc()) == 0)
   {
-    if (f)
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  if (ip->type == T_SYMLINK && (omode & O_NOFOLLOW) != O_NOFOLLOW)
+  {
+    while (ip->type == T_SYMLINK)
+    {
+      depth++;
+      if (depth >= 10)
+      {
+        // cycle is not allowed
+        fileclose(f);
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      if (readi(ip, 0, (uint64)link_path, 0, MAXPATH) <= 0)
+      {
+        fileclose(f);
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+
+      if ((link_ip = namei(link_path)) == 0)
+      {
+        fileclose(f);
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
       fileclose(f);
+      iunlockput(ip);
+      ilock(link_ip);
+      ip = link_ip;
+      if (ip->type == T_DIR && omode != O_RDONLY)
+      {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      if (ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV))
+      {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+
+      if ((f = filealloc()) == 0)
+      {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+    }
+  }
+
+  if ((fd = fdalloc(f)) < 0)
+  {
+    fileclose(f);
     iunlockput(ip);
     end_op();
     return -1;
@@ -604,5 +600,64 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_symlink(void)
+{
+  char src[MAXPATH];
+  char dst[MAXPATH];
+  struct file *f;
+  struct inode *ip;
+  int fd;
+
+  if (argstr(0, dst, MAXPATH) < 0 || argstr(1, src, MAXPATH) < 0)
+  {
+    return -1;
+  }
+
+  begin_op();
+
+  ip = create(src, T_SYMLINK, 0, 0);
+  if (ip == 0)
+  {
+    end_op();
+    return -1;
+  }
+
+  itrunc(ip);
+
+  iupdate(ip);
+
+  if ((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0)
+  {
+    if (f)
+      fileclose(f);
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  f->type = FD_INODE;
+  f->off = 0;
+  f->ip = ip;
+  f->readable = 1;
+  f->writable = 1;
+
+  itrunc(ip);
+
+  if (writei(f->ip, 0, (uint64)dst, f->off, strlen(dst) + 1) < strlen(dst) + 1)
+  {
+    fileclose(f);
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  // fileclose(f);
+  iunlock(ip);
+  end_op();
+
   return 0;
 }
