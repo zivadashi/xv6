@@ -312,38 +312,15 @@ void uvmfree(pagetable_t pagetable, uint64 sz)
 int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
-  uint64 pa, i;
-  uint flags;
-  char *mem;
+  pte_t *child_pte;
+  uint64 i, pa;
   uint writable;
-  uint exec;
   for (i = 0; i < sz; i += PGSIZE)
   {
-    exec = 0;
     if ((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if ((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    // not allocating new pages
-    // if((mem = kalloc()) == 0)
-    //   goto err;
-    // memmove(mem, (char *)pa, PGSIZE);
-
-    if (*pte & PTE_X)
-    {
-      exec = 1;
-    }
-
-    // assigning the same pa
-    mem = (char *)pa;
-    if (mappages(new, i, PGSIZE, (uint64)mem, flags) != 0)
-    {
-      // no need to free since we didn't allocate
-      // kfree(mem);
-      goto err;
-    }
 
     // recording that these PTEs were COWed, writable, and removing PTE_W
     writable = *pte & PTE_W;
@@ -353,28 +330,16 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     {
       *pte = *pte | PTE_OG_W;
     }
-    if (exec && !(*pte & PTE_X))
-    {
-      printf("here!\n");
-    }
-    if ((pte = walk(new, i, 0)) == 0)
-      panic("uvmcopy: chile pte should exist");
-    writable = *pte & PTE_W;
-    *pte = *pte | PTE_COW;
-    *pte = *pte & ~PTE_W;
-    if (writable)
-    {
-      *pte = *pte | PTE_OG_W;
-    }
-    if (exec && !(*pte & PTE_X))
-    {
-      printf("here!\n");
-    }
+    if ((child_pte = walk(new, i, 1)) == 0)
+      goto err;
+    *child_pte = *pte;
+    pa = PTE2PA(*pte);
+    inc_refcnt((char *)pa);
   }
   return 0;
 
 err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
+  uvmunmap(new, 0, i / PGSIZE, 0);
   return -1;
 }
 
@@ -414,13 +379,12 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
         return -1;
       }
       memmove(mem, (char *)pa0, PGSIZE);
-      *pte = *pte | PTE_W; // enabling the writing
+      *pte = *pte | PTE_W;                 // enabling the writing
+      *pte = *pte & ~(PTE_COW | PTE_OG_W); // removing the cow flags
       // creating the new mapping
       flags = PTE_FLAGS(*pte);
-      if (mappages(pagetable, va0, PGSIZE, (uint64)mem, flags) != 0)
-      {
-        return -1;
-      }
+      *pte = PA2PTE(mem) | flags;
+      kfree((char *)pa0);
     }
 
     // copyout logic

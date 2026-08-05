@@ -11,7 +11,7 @@
 
 void freerange(void *pa_start, void *pa_end);
 
-uint32 refcount[(PHYSTOP - KERNBASE) / 4096] = {0};
+int refcount[(PHYSTOP - KERNBASE) / 4096] = {0};
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
@@ -52,17 +52,19 @@ void kfree(void *pa)
   if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
-
   r = (struct run *)pa;
-  int idx = (uint64)(pa - KERNBASE) / 4096;
+  int idx = ((uint64)pa - KERNBASE) / 4096;
   if (idx < 0 || idx >= ((PHYSTOP - KERNBASE) / 4096))
   {
     printf("Problem!\n");
   }
 
   acquire(&kmem.lock);
+  if (refcount[idx] == 0)
+  {
+    // Fill with junk to catch dangling refs.
+    memset(pa, 1, PGSIZE);
+  }
   refcount[idx]--;
   if (refcount[idx] == -1)
   {
@@ -98,4 +100,20 @@ kalloc(void)
   if (r)
     memset((char *)r, 5, PGSIZE); // fill with junk
   return (void *)r;
+}
+
+void inc_refcnt(void *pa)
+{
+
+  if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
+    panic("kfree");
+  int idx = ((uint64)pa - KERNBASE) / 4096;
+  if (idx < 0 || idx >= ((PHYSTOP - KERNBASE) / 4096))
+  {
+    printf("Problem!\n");
+  }
+
+  acquire(&kmem.lock);
+  refcount[idx]++;
+  release(&kmem.lock);
 }

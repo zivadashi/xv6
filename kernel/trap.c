@@ -57,16 +57,27 @@ void usertrap(void)
     // store page fault
     va = r_stval();
     if ((pte = walk(p->pagetable, va, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-
-    // we only care if it was cowed and read only
-    if (*pte & PTE_COW && !(*pte & PTE_W))
+    {
+      if (kill(p->pid))
+      {
+        exit(-1);
+      }
+    }
+    if (!(*pte & PTE_COW))
+    {
+      if (kill(p->pid) == 0)
+      {
+        exit(-1);
+      }
+    }
+    // we only care if it was cowed, read only, and valid
+    if (*pte & PTE_COW && !(*pte & PTE_W) && (*pte & PTE_V))
     {
       // checking if process should be able to write to page
       if (!(*pte & PTE_OG_W))
       {
         // process attempted to write to a read only page
-        if (kill(p->pid))
+        if (kill(p->pid) == 0)
         {
           exit(-1);
         }
@@ -79,17 +90,16 @@ void usertrap(void)
         exit(-1);
       }
       memmove(mem, (char *)pa, PGSIZE);
-      *pte = *pte | PTE_W; // enabling the writing
+      kfree((char *)pa);
+      *pte = *pte | PTE_W;                 // enabling the writing
+      *pte = *pte & ~(PTE_COW | PTE_OG_W); // removing the cow flags
       // creating the new mapping
       flags = PTE_FLAGS(*pte);
-      if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0)
-      {
-        exit(-1);
-      }
+      *pte = PA2PTE(mem) | flags;
+      sfence_vma();
     }
   }
-
-  if (r_scause() == 8)
+  else if (r_scause() == 8)
   {
     // system call
 
