@@ -9,14 +9,15 @@ SECTIONS
   .text : {
     *(.text .text.*)
   }
-
+  
   .rodata : {
     . = ALIGN(16);
     *(.srodata .srodata.*) /* do not need to distinguish this from .rodata */
     . = ALIGN(16);
     *(.rodata .rodata.*)
-    . = ALIGN(0x1000);
   }
+
+  . = ALIGN(0x1000);
 
   .data : {
     . = ALIGN(16);
