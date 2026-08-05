@@ -174,6 +174,73 @@ bad:
   return -1;
 }
 
+uint64
+sys_symlink(void)
+{
+  char src[MAXPATH];
+  char dst[MAXPATH];
+  struct file *f;
+  struct inode *ip;
+  int fd;
+
+  if (argstr(0, src, MAXPATH) < 0 || argstr(1, dst, MAXPATH) < 0)
+  {
+    return -1;
+  }
+
+  begin_op();
+
+  if ((ip = namei(src)) == 0)
+  {
+    end_op();
+    return -1;
+  }
+
+  ilock(ip);
+
+  if (ip->type != T_FILE)
+  {
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  itrunc(ip);
+  ip->type = T_SYMLINK;
+  iupdate(ip);
+
+  if ((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0)
+  {
+    if (f)
+      fileclose(f);
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  f->type = FD_INODE;
+  f->off = 0;
+  f->ip = ip;
+  f->readable = 1;
+  f->writable = 1;
+
+  itrunc(ip);
+
+  // if (writei(f->ip, 0, (uint64)dst, f->off, strlen(dst) + 1) < strlen(dst) + 1)
+  // {
+  //   fileclose(f);
+  //   iunlockput(ip);
+  //   end_op();
+  //   return -1;
+  // }
+
+  fileclose(f);
+  iunlock(ip);
+  end_op();
+
+  return 0;
+}
+
 // Is the directory dp empty except for "." and ".." ?
 static int
 isdirempty(struct inode *dp)
