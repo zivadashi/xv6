@@ -95,12 +95,13 @@ void e1000_init(uint32 *xregs)
 
 int e1000_transmit(struct mbuf *m)
 {
-  printf("transmit\n");
+  acquire(&e1000_lock);
   uint32 ring_offset = regs[E1000_TDT];
   struct tx_desc *desc = &tx_ring[ring_offset];
-  if (desc->status != E1000_TXD_STAT_DD)
+  if (!(desc->status & E1000_TXD_STAT_DD))
   {
     // hasn't finished last operation
+    release(&e1000_lock);
     return -1;
   }
 
@@ -115,6 +116,7 @@ int e1000_transmit(struct mbuf *m)
   desc->length = m->len;
   desc->cmd = 0 | (1 << 3) | 1; // turning on status report and eop
   regs[E1000_TDT] = (ring_offset + 1) % TX_RING_SIZE;
+  release(&e1000_lock);
   return 0;
 }
 
@@ -123,7 +125,7 @@ e1000_recv(void)
 {
   struct mbuf *m;
   struct mbuf *new_m;
-  printf("receive\n");
+  acquire(&e1000_lock);
   uint32 ring_offset = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
   struct rx_desc *desc = &rx_ring[ring_offset];
   while (desc->status & E1000_RXD_STAT_DD)
@@ -136,10 +138,14 @@ e1000_recv(void)
     desc->addr = (uint64)new_m->head;
     desc->status = 0;
     regs[E1000_RDT] = ring_offset;
+    release(&e1000_lock);
     net_rx(m);
-    ring_offset++;
+    acquire(&e1000_lock);
+    ring_offset = (ring_offset + 1) % RX_RING_SIZE;
     desc = &rx_ring[ring_offset];
   }
+
+  release(&e1000_lock);
 }
 
 void e1000_intr(void)
