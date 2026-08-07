@@ -121,30 +121,25 @@ int e1000_transmit(struct mbuf *m)
 static void
 e1000_recv(void)
 {
+  struct mbuf *m;
+  struct mbuf *new_m;
   printf("receive\n");
   uint32 ring_offset = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
   struct rx_desc *desc = &rx_ring[ring_offset];
-  if (!(desc->status & E1000_RXD_STAT_DD))
+  while (desc->status & E1000_RXD_STAT_DD)
   {
-    // hardware is not done with this descriptor and we can't read it
-    return;
+    m = rx_mbufs[ring_offset];
+    m->len = desc->length;
+    new_m = mbufalloc(0);
+    rx_mbufs[ring_offset] = new_m;
+    desc->length = 0;
+    desc->addr = (uint64)new_m->head;
+    desc->status = 0;
+    regs[E1000_RDT] = ring_offset;
+    net_rx(m);
+    ring_offset++;
+    desc = &rx_ring[ring_offset];
   }
-  struct mbuf *m = rx_mbufs[ring_offset];
-  m->len = desc->length;
-  net_rx(m);
-  struct mbuf *new_m = mbufalloc(0);
-  rx_mbufs[ring_offset] = new_m;
-  desc->length = 0;
-  desc->addr = (uint64)new_m->head;
-  desc->status = 0;
-  regs[E1000_RDT] = ring_offset;
-
-  //
-  // Your code here.
-  //
-  // Check for packets that have arrived from the e1000
-  // Create and deliver an mbuf for each packet (using net_rx()).
-  //
 }
 
 void e1000_intr(void)
