@@ -113,6 +113,7 @@ void mmap_test(void)
   // offset in the file.
   //
   char *p = mmap(0, PGSIZE * 2, PROT_READ, MAP_PRIVATE, fd, 0);
+  printf("%p\n", p);
   if (p == MAP_FAILED)
     err("mmap (1)");
   _v1(p);

@@ -6,6 +6,17 @@
 #include "spinlock.h"
 #include "proc.h"
 
+#define STARTING_MMAP_ADDR 0x1000000000
+#define VMA_ADDR 0x2000000000
+#define VMA_COUNT 16
+
+struct vma
+{
+  uint64 addr;
+  int len;
+  int prot;
+};
+
 uint64
 sys_exit(void)
 {
@@ -97,7 +108,43 @@ sys_uptime(void)
 uint64
 sys_mmap(void)
 {
-  return -1;
+  int length;
+  argint(1, &length);
+  int prot;
+  argint(2, &prot);
+  int flags;
+  argint(3, &flags);
+  int fd;
+  argint(4, &fd);
+  int offset;
+  argint(5, &offset);
+  // getting the VMA
+  pte_t *pte = walk(myproc()->pagetable, VMA_ADDR, 1);
+  struct vma *pa = (struct vma *)PTE2PA(*pte);
+  if (!pa)
+  {
+    pa = kalloc();
+    memset(pa, 0, PGSIZE);
+    *pte = *pte | PA2PTE(pa);
+  }
+  // creating a mapping
+  uint64 va = STARTING_MMAP_ADDR;
+  for (int i = 0; i < VMA_COUNT; i++)
+  {
+    if (pa[i].addr == 0)
+    {
+      pa[i].addr = va;
+      pa[i].len = length;
+      pa[i].prot = prot;
+      break;
+    }
+    else
+    {
+      va += pa[i].len + ((PGSIZE - (pa[i].len % PGSIZE)) % PGSIZE);
+    }
+  }
+
+  return va;
 }
 
 uint64
