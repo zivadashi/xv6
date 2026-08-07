@@ -114,7 +114,6 @@ int e1000_transmit(struct mbuf *m)
   desc->addr = (uint64)m->head;
   desc->length = m->len;
   desc->cmd = 0 | (1 << 3) | 1; // turning on status report and eop
-  printf("cmd: %x\n", desc->cmd);
   regs[E1000_TDT] = (ring_offset + 1) % TX_RING_SIZE;
   return 0;
 }
@@ -123,6 +122,23 @@ static void
 e1000_recv(void)
 {
   printf("receive\n");
+  uint32 ring_offset = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
+  struct rx_desc *desc = &rx_ring[ring_offset];
+  if (!(desc->status & E1000_RXD_STAT_DD))
+  {
+    // hardware is not done with this descriptor and we can't read it
+    return;
+  }
+  struct mbuf *m = rx_mbufs[ring_offset];
+  m->len = desc->length;
+  net_rx(m);
+  struct mbuf *new_m = mbufalloc(0);
+  rx_mbufs[ring_offset] = new_m;
+  desc->length = 0;
+  desc->addr = (uint64)new_m->head;
+  desc->status = 0;
+  regs[E1000_RDT] = ring_offset;
+
   //
   // Your code here.
   //
