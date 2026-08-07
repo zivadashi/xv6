@@ -54,10 +54,6 @@ void kfree(void *pa)
 
   r = (struct run *)pa;
   int idx = ((uint64)pa - KERNBASE) / 4096;
-  if (idx < 0 || idx >= ((PHYSTOP - KERNBASE) / 4096))
-  {
-    printf("Problem!\n");
-  }
 
   acquire(&kmem.lock);
   if (refcount[idx] == 0)
@@ -88,10 +84,6 @@ kalloc(void)
   if (r)
   {
     idx = ((uint64)r - KERNBASE) / 4096;
-    if (idx < 0 || idx >= ((PHYSTOP - KERNBASE) / 4096))
-    {
-      printf("Problem!\n");
-    }
     kmem.freelist = r->next;
     refcount[idx]++;
   }
@@ -108,10 +100,6 @@ void inc_refcnt(void *pa)
   if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
   int idx = ((uint64)pa - KERNBASE) / 4096;
-  if (idx < 0 || idx >= ((PHYSTOP - KERNBASE) / 4096))
-  {
-    printf("Problem!\n");
-  }
 
   acquire(&kmem.lock);
   refcount[idx]++;
