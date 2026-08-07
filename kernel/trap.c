@@ -56,9 +56,13 @@ void usertrap(void)
   {
     // store page fault
     va = r_stval();
+    if (va >= MAXVA && kill(p->pid) == 0)
+    {
+      exit(-1);
+    }
     if ((pte = walk(p->pagetable, va, 0)) == 0)
     {
-      if (kill(p->pid))
+      if (kill(p->pid) == 0)
       {
         exit(-1);
       }

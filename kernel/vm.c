@@ -368,10 +368,23 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   while (len > 0)
   {
     va0 = PGROUNDDOWN(dstva);
+    if (va0 >= MAXVA)
+    {
+      return -1;
+    }
     pte = walk(pagetable, va0, 0);
+    if (pte == 0)
+    {
+      return -1;
+    }
     // checking for COW
     if (*pte & PTE_COW && !(*pte & PTE_W))
     {
+      if (!(*pte & PTE_OG_W))
+      {
+        // writing not allowed
+        return -1;
+      }
       // doing the COW
       pa0 = PTE2PA(*pte);
       if ((mem = kalloc()) == 0)
